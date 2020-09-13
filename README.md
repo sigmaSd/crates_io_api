@@ -1,3 +1,13 @@
+# Fork
+This fork goal to remove dependencies as much as possible
+
+Diffrence from the original:
+- serde replaced with nanoserde
+- reqwest replaced with ureq
+- no async client
+
+Uptodate with commit 34e5f07a442d3a83e1d93fbf3a5f79e4a60c12c9
+
 # crates_io_api
 
 A Rust client for the [crates.io](https://crates.io) API.
