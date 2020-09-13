@@ -13,15 +13,8 @@ edition = "2018"
 version = "0.6.1"
 
 [dependencies]
-chrono = { version = "0.4.6", features = ["serde"] }
-reqwest = { version = "0.10", features = ["blocking", "json"] }
-serde = "1.0.79"
-serde_derive = "1.0.79"
-serde_json = "1.0.32"
 url = "2.1.0"
 log = "0.4.5"
-futures = "0.3.4"
-tokio = { version = "0.2.21", default-features = false, features = ["time"] }
+nanoserde = "0.1.19"
+ureq = {version="1.4.0", default-features=false, features= ["tls"]}
 
-[dev-dependencies]
-tokio = "0.2"

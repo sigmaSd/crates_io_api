@@ -1,18 +1,37 @@
-use super::*;
-use std::iter::Extend;
-
 use log::trace;
-use reqwest::{blocking::Client as HttpClient, header, StatusCode, Url};
-use serde::de::DeserializeOwned;
+use std::iter::Extend;
+use url::Url;
 
 use crate::types::*;
 
 /// A synchronous client for the crates.io API.
+#[derive(Clone)]
+struct HttpClient {
+    agent: (String, String),
+}
+impl HttpClient {
+    fn new() -> Self {
+        HttpClient {
+            agent: Default::default(),
+        }
+    }
+    fn get(&self, url: Url) -> ureq::Response {
+        ureq::get(&url.to_string())
+            .set(&self.agent.0, &self.agent.1)
+            .call()
+    }
+
+    fn set(&mut self, agent: &str, value: &str) -> Self {
+        self.agent = (agent.to_string(), value.to_string());
+        self.clone()
+    }
+}
+
+type CatchAll<T> = Result<T, Box<dyn std::error::Error>>;
+
 pub struct SyncClient {
     client: HttpClient,
     base_url: Url,
-    rate_limit: std::time::Duration,
-    last_request_time: std::sync::Mutex<Option<std::time::Instant>>,
 }
 
 impl SyncClient {
@@ -27,7 +46,7 @@ impl SyncClient {
     /// Example user agent: `"my_bot (my_bot.com/info)"` or `"my_bot (help@my_bot.com)"`.
     ///
     /// ```rust
-    /// # fn f() -> Result<(), crates_io_api::Error> {
+    /// # fn f() -> CatchAll<()> {
     /// let client = crates_io_api::AsyncClient::new(
     ///   "my_bot (help@my_bot.com)",
     ///   std::time::Duration::from_millis(1000),
@@ -35,59 +54,31 @@ impl SyncClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new(
-        user_agent: &str,
-        rate_limit: std::time::Duration,
-    ) -> Result<Self, reqwest::header::InvalidHeaderValue> {
-        let mut headers = header::HeaderMap::new();
-        headers.insert(
-            header::USER_AGENT,
-            header::HeaderValue::from_str(user_agent)?,
-        );
-
+    pub fn new(user_agent: &str) -> CatchAll<Self> {
         Ok(Self {
-            client: HttpClient::builder()
-                .default_headers(headers)
-                .build()
-                .unwrap(),
+            client: HttpClient::new().set("User-Agent", user_agent),
             base_url: Url::parse("https://crates.io/api/v1/").unwrap(),
-            rate_limit,
-            last_request_time: std::sync::Mutex::new(None),
         })
     }
 
-    fn get<T: DeserializeOwned>(&self, url: Url) -> Result<T, Error> {
+    fn get<T: nanoserde::DeJson>(&self, url: Url) -> CatchAll<T> {
         trace!("GET {}", url);
 
-        let mut lock = self.last_request_time.lock().unwrap();
-        if let Some(last_request_time) = lock.take() {
-            let now = std::time::Instant::now();
-            if last_request_time.elapsed() < self.rate_limit {
-                std::thread::sleep((last_request_time + self.rate_limit) - now);
-            }
-        }
-
-        let time = std::time::Instant::now();
-
         let res = {
-            let res = self.client.get(url.clone()).send()?;
+            let res = self.client.get(url);
 
-            if res.status() == StatusCode::NOT_FOUND {
-                return Err(Error::NotFound(super::NotFound {
-                    url: url.to_string(),
-                }));
+            if res.status() == 404 {
+                return Err("Not Found".into());
             }
-            res.error_for_status()?
+            res
         };
 
-        *lock = Some(time);
-
-        let data: T = res.json()?;
+        let data: T = nanoserde::DeJson::deserialize_json(&dbg!(res.into_string()?))?;
         Ok(data)
     }
 
     /// Retrieve a summary containing crates.io wide information.
-    pub fn summary(&self) -> Result<Summary, Error> {
+    pub fn summary(&self) -> CatchAll<Summary> {
         let url = self.base_url.join("summary").unwrap();
         self.get(url)
     }
@@ -95,19 +86,19 @@ impl SyncClient {
     /// Retrieve information of a crate.
     ///
     /// If you require detailed information, consider using [full_crate]().
-    pub fn get_crate(&self, name: &str) -> Result<CrateResponse, Error> {
+    pub fn get_crate(&self, name: &str) -> CatchAll<CrateResponse> {
         let url = self.base_url.join("crates/")?.join(name)?;
         self.get(url)
     }
 
     /// Retrieve download stats for a crate.
-    pub fn crate_downloads(&self, name: &str) -> Result<Downloads, Error> {
+    pub fn crate_downloads(&self, name: &str) -> CatchAll<Downloads> {
         let url = self.base_url.join(&format!("crates/{}/downloads", name))?;
         self.get(url)
     }
 
     /// Retrieve the owners of a crate.
-    pub fn crate_owners(&self, name: &str) -> Result<Vec<User>, Error> {
+    pub fn crate_owners(&self, name: &str) -> CatchAll<Vec<User>> {
         let url = self.base_url.join(&format!("crates/{}/owners", name))?;
         let resp: Owners = self.get(url)?;
         Ok(resp.users)
@@ -118,7 +109,7 @@ impl SyncClient {
     /// Note: Since the reverse dependency endpoint requires pagination, this
     /// will result in multiple requests if the crate has more than 100 reverse
     /// dependencies.
-    pub fn crate_reverse_dependencies(&self, name: &str) -> Result<ReverseDependencies, Error> {
+    pub fn crate_reverse_dependencies(&self, name: &str) -> CatchAll<ReverseDependencies> {
         let mut page = 1;
         let mut rdeps: ReverseDependenciesAsReceived;
         let mut tidy_rdeps = ReverseDependencies {
@@ -147,7 +138,7 @@ impl SyncClient {
     }
 
     /// Retrieve the authors for a crate version.
-    pub fn crate_authors(&self, name: &str, version: &str) -> Result<Authors, Error> {
+    pub fn crate_authors(&self, name: &str, version: &str) -> CatchAll<Authors> {
         let url = self
             .base_url
             .join(&format!("crates/{}/{}/authors", name, version))?;
@@ -159,7 +150,7 @@ impl SyncClient {
     }
 
     /// Retrieve the dependencies of a crate version.
-    pub fn crate_dependencies(&self, name: &str, version: &str) -> Result<Vec<Dependency>, Error> {
+    pub fn crate_dependencies(&self, name: &str, version: &str) -> CatchAll<Vec<Dependency>> {
         let url = self
             .base_url
             .join(&format!("crates/{}/{}/dependencies", name, version))?;
@@ -167,13 +158,11 @@ impl SyncClient {
         Ok(resp.dependencies)
     }
 
-    fn full_version(&self, version: Version) -> Result<FullVersion, Error> {
+    fn full_version(&self, version: Version) -> CatchAll<FullVersion> {
         let authors = self.crate_authors(&version.crate_name, &version.num)?;
         let deps = self.crate_dependencies(&version.crate_name, &version.num)?;
 
         let v = FullVersion {
-            created_at: version.created_at,
-            updated_at: version.updated_at,
             dl_path: version.dl_path,
             downloads: version.downloads,
             features: version.features,
@@ -200,7 +189,7 @@ impl SyncClient {
     /// detailed information for all versions will be available.
     ///
     /// Note: Each version requires two extra requests.
-    pub fn full_crate(&self, name: &str, all_versions: bool) -> Result<FullCrate, Error> {
+    pub fn full_crate(&self, name: &str, all_versions: bool) -> CatchAll<FullCrate> {
         let resp = self.get_crate(name)?;
         let data = resp.crate_data;
 
@@ -215,7 +204,7 @@ impl SyncClient {
             resp.versions
                 .into_iter()
                 .map(|v| self.full_version(v))
-                .collect::<Result<Vec<FullVersion>, Error>>()?
+                .collect::<CatchAll<Vec<FullVersion>>>()?
         } else {
             let v = self.full_version(resp.versions[0].clone())?;
             vec![v]
@@ -231,8 +220,6 @@ impl SyncClient {
             repository: data.repository,
             total_downloads: data.downloads,
             max_version: data.max_version,
-            created_at: data.created_at,
-            updated_at: data.updated_at,
 
             categories: resp.categories,
             keywords: resp.keywords,
@@ -257,7 +244,7 @@ impl SyncClient {
     /// ```rust
     /// # use crates_io_api::{SyncClient, ListOptions, Sort, Error};
     ///
-    /// # fn f() -> Result<(), Error> {
+    /// # fn f() -> CatchAll<()> {
     /// # let client = SyncClient::new( "my-bot-name (my-contact@domain.com)", std::time::Duration::from_millis(1000))?;
     /// client.crates(ListOptions{
     ///   sort: Sort::Alphabetical,
@@ -268,7 +255,7 @@ impl SyncClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn crates(&self, spec: ListOptions) -> Result<CratesResponse, Error> {
+    pub fn crates(&self, spec: ListOptions) -> CatchAll<CratesResponse> {
         let mut url = self.base_url.join("crates")?;
         {
             let mut q = url.query_pairs_mut();
@@ -286,7 +273,7 @@ impl SyncClient {
     ///
     /// Note: This method fetches all pages of the result.
     /// This can result in a lot queries (100 results per query).
-    pub fn all_crates(&self, query: Option<String>) -> Result<Vec<Crate>, Error> {
+    pub fn all_crates(&self, query: Option<String>) -> CatchAll<Vec<Crate>> {
         let mut page = 1;
         let mut crates = Vec::new();
         loop {
@@ -320,7 +307,7 @@ mod test {
     }
 
     #[test]
-    fn list_top_dependencies_sync() -> Result<(), Error> {
+    fn list_top_dependencies_sync() -> CatchAll<()> {
         // Instantiate the client.
         let client = test_client();
         // Retrieve summary data.

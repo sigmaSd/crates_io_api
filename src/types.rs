@@ -1,7 +1,6 @@
 //! Types for the data that is available via the API.
 
-use chrono::{DateTime, NaiveDate, Utc};
-use serde_derive::*;
+use nanoserde::{DeJson, SerJson};
 use std::collections::HashMap;
 
 /// Used to specify the sort behaviour of the `Client::crates()` method.
@@ -38,13 +37,13 @@ pub struct ListOptions {
 }
 
 /// Pagination information.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct Meta {
     /// The total amount of results.
     pub total: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct CrateLinks {
     pub owner_team: String,
     pub owner_user: String,
@@ -54,7 +53,7 @@ pub struct CrateLinks {
     pub versions: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct Crate {
     pub id: String,
     pub name: String,
@@ -72,36 +71,32 @@ pub struct Crate {
     pub versions: Option<Vec<u64>>,
     pub max_version: String,
     pub links: CrateLinks,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
     pub exact_match: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct CratesResponse {
     pub crates: Vec<Crate>,
-    #[serde(default)]
+    #[nserde(default)]
     pub versions: Vec<Version>,
-    #[serde(default)]
+    #[nserde(default)]
     pub keywords: Vec<Keyword>,
-    #[serde(default)]
+    #[nserde(default)]
     pub categories: Vec<Category>,
     pub meta: Meta,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct VersionLinks {
     pub authors: String,
     pub dependencies: String,
     pub version_downloads: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct Version {
-    #[serde(rename = "crate")]
+    #[nserde(rename = "crate")]
     pub crate_name: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
     pub dl_path: String,
     pub downloads: u64,
     pub features: HashMap<String, Vec<String>>,
@@ -115,34 +110,32 @@ pub struct Version {
     pub published_by: Option<User>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct Category {
     pub category: String,
     pub crates_cnt: u64,
-    pub created_at: DateTime<Utc>,
     pub description: String,
     pub id: String,
     pub slug: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct Keyword {
     pub id: String,
     pub keyword: String,
     pub crates_cnt: u64,
-    pub created_at: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct CrateResponse {
     pub categories: Vec<Category>,
-    #[serde(rename = "crate")]
+    #[nserde(rename = "crate")]
     pub crate_data: Crate,
     pub keywords: Vec<Keyword>,
     pub versions: Vec<Version>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct Summary {
     pub just_updated: Vec<Crate>,
     pub most_downloaded: Vec<Crate>,
@@ -154,31 +147,29 @@ pub struct Summary {
     pub popular_keywords: Vec<Keyword>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct VersionDownloads {
-    pub date: NaiveDate,
     pub downloads: u64,
     pub version: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct ExtraDownloads {
-    pub date: NaiveDate,
     pub downloads: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct DownloadsMeta {
     pub extra_downloads: Vec<ExtraDownloads>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct Downloads {
     pub version_downloads: Vec<VersionDownloads>,
     pub meta: DownloadsMeta,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct User {
     pub avatar: Option<String>,
     pub email: Option<String>,
@@ -189,12 +180,12 @@ pub struct User {
     pub url: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct AuthorsMeta {
     pub names: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct AuthorsResponse {
     pub meta: AuthorsMeta,
     pub users: Vec<User>,
@@ -205,12 +196,12 @@ pub struct Authors {
     pub users: Vec<User>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct Owners {
     pub users: Vec<User>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct Dependency {
     pub crate_id: String,
     pub default_features: bool,
@@ -224,27 +215,27 @@ pub struct Dependency {
     pub version_id: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct Dependencies {
     pub dependencies: Vec<Dependency>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct ReverseDependency {
     pub crate_version: Version,
     pub dependency: Dependency,
 }
 
 // This is how reverse dependencies are received
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub(super) struct ReverseDependenciesAsReceived {
+#[derive(SerJson, DeJson, Debug, Clone)]
+pub struct ReverseDependenciesAsReceived {
     pub dependencies: Vec<Dependency>,
     pub versions: Vec<Version>,
     pub meta: Meta,
 }
 
 // This is how reverse dependencies are presented
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct ReverseDependencies {
     pub dependencies: Vec<ReverseDependency>,
     pub meta: Meta,
@@ -270,10 +261,8 @@ impl ReverseDependencies {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct FullVersion {
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
     pub dl_path: String,
     pub downloads: u64,
     pub features: HashMap<String, Vec<String>>,
@@ -289,7 +278,7 @@ pub struct FullVersion {
     pub dependencies: Vec<Dependency>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(SerJson, DeJson, Debug, Clone)]
 pub struct FullCrate {
     pub id: String,
     pub name: String,
@@ -300,8 +289,6 @@ pub struct FullCrate {
     pub repository: Option<String>,
     pub total_downloads: u64,
     pub max_version: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 
     pub categories: Vec<Category>,
     pub keywords: Vec<Keyword>,

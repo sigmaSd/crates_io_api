@@ -43,14 +43,7 @@
 
 #![recursion_limit = "128"]
 
-mod async_client;
-mod error;
 mod sync_client;
 mod types;
 
-pub use crate::{
-    async_client::Client as AsyncClient,
-    error::{Error, NotFound},
-    sync_client::SyncClient,
-    types::*,
-};
+pub use crate::{sync_client::SyncClient, types::*};
