@@ -1,5 +1,5 @@
 # Fork
-This fork goal is to remove dependencies as much as possible
+This fork goal is to remove dependencies as much as possible (33 total dependency instead of 130)
 
 Diffrence from the original:
 - serde replaced with nanoserde
